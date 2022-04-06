@@ -3,7 +3,11 @@ package main
 import (
 	"circl/hpke"
 	"circl/kem"
+	"context"
 	"fmt"
+
+	"github.com/libdns/cloudflare"
+	"github.com/libdns/libdns"
 )
 
 type iECHConfigBuilder interface {
@@ -39,6 +43,21 @@ type ECHConfigInner struct {
 
 
 func main() {
+	ctx := context.TODO()
+
+	provider := cloudflare.Provider {APIToken: "topsecret"}
+	_, err := provider.SetRecords(ctx, "conblem.me", []libdns.Record{
+		 {
+			Type: "A",
+			Name: "sub",
+			Value: "1.2.3.4",
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+
 	var builder ECHConfigBuilder
 	test(&builder)
 	fmt.Printf("%+v", builder)

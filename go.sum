@@ -1,3 +1,9 @@
+github.com/libdns/cloudflare v0.1.0 h1:93WkJaGaiXCe353LHEP36kAWCUw0YjFqwhkBkU2/iic=
+github.com/libdns/cloudflare v0.1.0/go.mod h1:a44IP6J1YH6nvcNl1PverfJviADgXUnsozR3a7vBKN8=
+github.com/libdns/libdns v0.2.0 h1:ewg3ByWrdUrxrje8ChPVMBNcotg7H9LQYg+u5De2RzI=
+github.com/libdns/libdns v0.2.0/go.mod h1:yQCXzk1lEZmmCPa857bnk4TsOiqYasqpyOEeSObbb40=
+github.com/libdns/libdns v0.2.1 h1:Wu59T7wSHRgtA0cfxC+n1c/e+O3upJGWytknkmFEDis=
+github.com/libdns/libdns v0.2.1/go.mod h1:yQCXzk1lEZmmCPa857bnk4TsOiqYasqpyOEeSObbb40=
 github.com/yuin/goldmark v1.4.1 h1:/vn0k+RBvwlxEmP5E7SZMqNxPhfMVFEJiykr15/0XKM=
 github.com/yuin/goldmark v1.4.1/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 h1:kQgndtyPBW/JIYERgdxfwMYh3AVStj88WQTlNDi2a+o=

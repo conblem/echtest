@@ -3,6 +3,8 @@ module github.com/conblem/echtest/main
 go 1.17
 
 require (
+	github.com/libdns/cloudflare v0.1.0
+	github.com/libdns/libdns v0.2.1
 	github.com/yuin/goldmark v1.4.1 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
