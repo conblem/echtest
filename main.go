@@ -42,17 +42,56 @@ func (b *ECHConfigBuilder) build() tls.ECHConfig {
 	return config
 }
 
-type ECHConfigInner struct {
-	version uint16
+type echConfigInner struct {
+	configId       uint8
+	publicKey      kem.PublicKey
+	cipherSuites   []hpke.Suite
+	maximumNameLen uint8
+	publicName     []byte
 }
 
-func (c ECHConfigInner) MarshalECHConfig() []byte {
+func (c echConfigInner) marshalECHConfig() []byte {
 	var builder cryptobyte.Builder
-	builder.AddUint16(c.version)
-	builder.
+	builder.AddUint16(0xfe0d)
+	builder.AddUint16LengthPrefixed(c.marshalECHConfigContents)
 
-	// todo: fix this
-	return make([]byte, 0)
+	bytes, err := builder.Bytes()
+	if err != nil {
+		panic(err)
+	}
+	return bytes
+}
+
+func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+	kem, _, _ := c.cipherSuites[0].Params()
+	builder.AddUint8(c.configId)
+	builder.AddUint16(uint16(kem))
+
+	// add public key
+	publicKey, err := c.publicKey.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	builder.AddBytes(publicKey)
+
+	// add ciphersuites
+	// check if kem id is correct
+	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
+		for _, cipherSuite := range c.cipherSuites {
+			_, kdf, aead := cipherSuite.Params()
+			child.AddUint16(uint16(kdf))
+			child.AddUint16(uint16(aead))
+		}
+	})
+
+	builder.AddUint8(c.maximumNameLen)
+
+	builder.AddUint8LengthPrefixed(func(child *cryptobyte.Builder) {
+		child.AddBytes(c.publicName)
+	})
+
+	// disable extensions for the moment
+	builder.AddUint16(0)
 }
 
 func main() {
