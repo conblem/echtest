@@ -38,8 +38,22 @@ func (b *ECHConfigBuilder) setPublicKey(publicKey kem.PublicKey) iECHConfigBuild
 }
 
 func (b *ECHConfigBuilder) build() tls.ECHConfig {
-	var config tls.ECHConfig
-	return config
+	inner := echConfigInner{
+		configId:  b.configId,
+		publicKey: b.publicKey,
+		// todo: figure out what this should be
+		maximumNameLen: 0,
+		// todo: set to gschide value
+		publicName: "test",
+	}
+	innerBytes := inner.marshalECHConfig()
+
+	configs, err := tls.UnmarshalECHConfigs(innerBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return configs[0]
 }
 
 type echConfigInner struct {
@@ -47,7 +61,7 @@ type echConfigInner struct {
 	publicKey      kem.PublicKey
 	cipherSuites   []hpke.Suite
 	maximumNameLen uint8
-	publicName     []byte
+	publicName     string
 }
 
 func (c echConfigInner) marshalECHConfig() []byte {
@@ -62,7 +76,7 @@ func (c echConfigInner) marshalECHConfig() []byte {
 	return bytes
 }
 
-func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 	kem, _, _ := c.cipherSuites[0].Params()
 	builder.AddUint8(c.configId)
 	builder.AddUint16(uint16(kem))
@@ -84,13 +98,21 @@ func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
 		}
 	})
 
+}
+
+func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+	// HpkeKeyConfig
+	c.marshalHpkeKeyConfig(builder)
+
+	// maximum_name_length
 	builder.AddUint8(c.maximumNameLen)
 
+	// public name
 	builder.AddUint8LengthPrefixed(func(child *cryptobyte.Builder) {
-		child.AddBytes(c.publicName)
+		child.AddBytes([]byte(c.publicName))
 	})
 
-	// disable extensions for the moment
+	// disable extensions for the moment so we just add a length of 0
 	builder.AddUint16(0)
 }
 
