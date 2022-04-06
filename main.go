@@ -1,6 +1,7 @@
 package main
 
 import (
+	"circl/hpke"
 	"circl/kem"
 	"fmt"
 )
@@ -8,23 +9,27 @@ import (
 type iECHConfigBuilder interface {
 	setVersion(version uint16) iECHConfigBuilder
 	setConfigId(configId uint8) iECHConfigBuilder
+	setPublicKey(kem.PublicKey) iECHConfigBuilder
 }
 
 type ECHConfigBuilder struct {
 	version uint16
 	configId uint8
-	publicKey *kem.PublicKey
+	publicKey kem.PublicKey
 }
 
 func (b *ECHConfigBuilder) setVersion(version uint16) iECHConfigBuilder {
 	b.version = version
-
 	return b
 }
 
 func (b *ECHConfigBuilder) setConfigId(configId uint8) iECHConfigBuilder {
 	b.configId = configId
+	return b
+}
 
+func (b  *ECHConfigBuilder) setPublicKey(publicKey kem.PublicKey) iECHConfigBuilder {
+	b.publicKey = publicKey
 	return b
 }
 
@@ -40,5 +45,10 @@ func main() {
 }
 
 func test(builder iECHConfigBuilder) {
-	builder.setConfigId(6).setVersion(16)
+	publicKey, _, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	if err != nil {
+		panic(err)
+	}
+	
+	builder.setConfigId(6).setVersion(16).setPublicKey(publicKey)
 }
