@@ -30,5 +30,11 @@ type ECHConfigInner struct {
 
 
 func main() {
+	var builder ECHConfigBuilder
+	test(builder)
 	fmt.Println("Hello, World! 222")
+}
+
+func test(builder *iECHConfigBuilder) {
+
 }
