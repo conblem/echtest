@@ -6,8 +6,8 @@ import (
 )
 
 type iECHConfigBuilder interface {
-	setVersion(version uint16)
-	setConfigId(configId uint8)
+	setVersion(version uint16) iECHConfigBuilder
+	setConfigId(configId uint8) iECHConfigBuilder
 }
 
 type ECHConfigBuilder struct {
@@ -16,12 +16,16 @@ type ECHConfigBuilder struct {
 	publicKey *kem.PublicKey
 }
 
-func (b *ECHConfigBuilder) setVersion(version uint16) {
+func (b *ECHConfigBuilder) setVersion(version uint16) iECHConfigBuilder {
 	b.version = version
+
+	return b
 }
 
-func (b *ECHConfigBuilder) setConfigId(configId uint8) {
+func (b *ECHConfigBuilder) setConfigId(configId uint8) iECHConfigBuilder {
 	b.configId = configId
+
+	return b
 }
 
 type ECHConfigInner struct {
@@ -31,10 +35,10 @@ type ECHConfigInner struct {
 
 func main() {
 	var builder ECHConfigBuilder
-	test(builder)
-	fmt.Println("Hello, World! 222")
+	test(&builder)
+	fmt.Printf("%+v", builder)
 }
 
-func test(builder *iECHConfigBuilder) {
-
+func test(builder iECHConfigBuilder) {
+	builder.setConfigId(6).setVersion(16)
 }
