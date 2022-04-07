@@ -13,6 +13,7 @@ type iECHConfigBuilder interface {
 	setVersion(version uint16) iECHConfigBuilder
 	setConfigId(configId uint8) iECHConfigBuilder
 	setPublicKey(kem.PublicKey) iECHConfigBuilder
+	setCipherSuite(hpke.Suite) iECHConfigBuilder
 	build() tls.ECHConfig
 }
 
@@ -20,6 +21,7 @@ type ECHConfigBuilder struct {
 	version   uint16
 	configId  uint8
 	publicKey kem.PublicKey
+	suite     hpke.Suite
 }
 
 func (b *ECHConfigBuilder) setVersion(version uint16) iECHConfigBuilder {
@@ -37,6 +39,12 @@ func (b *ECHConfigBuilder) setPublicKey(publicKey kem.PublicKey) iECHConfigBuild
 	return b
 }
 
+func (b *ECHConfigBuilder) setCipherSuite(suite hpke.Suite) iECHConfigBuilder {
+	b.suite = suite
+
+	return b
+}
+
 func (b *ECHConfigBuilder) build() tls.ECHConfig {
 	inner := echConfigInner{
 		configId:  b.configId,
@@ -44,11 +52,23 @@ func (b *ECHConfigBuilder) build() tls.ECHConfig {
 		// todo: figure out what this should be
 		maximumNameLen: 0,
 		// todo: set to gschide value
-		publicName: "test",
+		publicName:   "test",
+		cipherSuites: []hpke.Suite{b.suite},
 	}
 	innerBytes := inner.marshalECHConfig()
 
-	configs, err := tls.UnmarshalECHConfigs(innerBytes)
+	// todo: fix this hack
+	var arrayBuilder cryptobyte.Builder
+	arrayBuilder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
+		child.AddBytes(innerBytes)
+	})
+	arrayBytes, err := arrayBuilder.Bytes()
+	if err != nil {
+		panic(err)
+	}
+
+	//configs, err := tls.UnmarshalECHConfigs(innerBytes)
+	configs, err := tls.UnmarshalECHConfigs(arrayBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +106,9 @@ func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 	if err != nil {
 		panic(err)
 	}
-	builder.AddBytes(publicKey)
+	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
+		child.AddBytes(publicKey)
+	})
 
 	// add ciphersuites
 	// check if kem id is correct
@@ -101,6 +123,8 @@ func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 }
 
 func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+	fmt.Println("test")
+
 	// HpkeKeyConfig
 	c.marshalHpkeKeyConfig(builder)
 
@@ -132,17 +156,22 @@ func main() {
 	}*/
 
 	var builder ECHConfigBuilder
-	test(&builder)
-	fmt.Printf("%+v", builder)
+	config := test(&builder)
+	fmt.Printf("%+v", config)
 }
 
 func test(builder iECHConfigBuilder) tls.ECHConfig {
-	publicKey, _, err := hpke.KEM_X25519_HKDF_SHA256.Scheme().GenerateKeyPair()
+	publicKey, _, err := hpke.KEM_P384_HKDF_SHA384.Scheme().GenerateKeyPair()
 	if err != nil {
 		panic(err)
 	}
 
-	config := builder.setConfigId(6).setVersion(16).setPublicKey(publicKey).build()
+	kemID := hpke.KEM_P384_HKDF_SHA384
+	kdfID := hpke.KDF_HKDF_SHA384
+	aeadID := hpke.AEAD_AES256GCM
+	suite := hpke.NewSuite(kemID, kdfID, aeadID)
+
+	config := builder.setConfigId(6).setVersion(16).setPublicKey(publicKey).setCipherSuite(suite).build()
 
 	return config
 }
