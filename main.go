@@ -96,6 +96,22 @@ func (c echConfigInner) marshalECHConfig() []byte {
 	return bytes
 }
 
+func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+	// HpkeKeyConfig
+	c.marshalHpkeKeyConfig(builder)
+
+	// maximum_name_length
+	builder.AddUint8(c.maximumNameLen)
+
+	// public name
+	builder.AddUint8LengthPrefixed(func(child *cryptobyte.Builder) {
+		child.AddBytes([]byte(c.publicName))
+	})
+
+	// disable extensions for the moment so we just add a length of 0
+	builder.AddUint16(0)
+}
+
 func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 	kem, _, _ := c.cipherSuites[0].Params()
 	builder.AddUint8(c.configId)
@@ -111,7 +127,7 @@ func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 	})
 
 	// add ciphersuites
-	// check if kem id is correct
+	// todo: check if kem id is correct
 	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
 		for _, cipherSuite := range c.cipherSuites {
 			_, kdf, aead := cipherSuite.Params()
@@ -120,24 +136,6 @@ func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
 		}
 	})
 
-}
-
-func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
-	fmt.Println("test")
-
-	// HpkeKeyConfig
-	c.marshalHpkeKeyConfig(builder)
-
-	// maximum_name_length
-	builder.AddUint8(c.maximumNameLen)
-
-	// public name
-	builder.AddUint8LengthPrefixed(func(child *cryptobyte.Builder) {
-		child.AddBytes([]byte(c.publicName))
-	})
-
-	// disable extensions for the moment so we just add a length of 0
-	builder.AddUint16(0)
 }
 
 func main() {
@@ -171,7 +169,12 @@ func test(builder iECHConfigBuilder) tls.ECHConfig {
 	aeadID := hpke.AEAD_AES256GCM
 	suite := hpke.NewSuite(kemID, kdfID, aeadID)
 
-	config := builder.setConfigId(6).setVersion(16).setPublicKey(publicKey).setCipherSuite(suite).build()
+	config := builder.
+		setConfigId(6).
+		setVersion(16).
+		setPublicKey(publicKey).
+		setCipherSuite(suite).
+		build()
 
 	return config
 }
