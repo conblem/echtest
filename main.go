@@ -1,10 +1,12 @@
 package main
 
 import (
-	"circl/hpke"
-	"circl/kem"
 	"crypto/tls"
+	"errors"
 	"fmt"
+
+	"github.com/cloudflare/circl/hpke"
+	"github.com/cloudflare/circl/kem"
 
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -14,7 +16,7 @@ type iECHConfigBuilder interface {
 	setConfigId(configId uint8) iECHConfigBuilder
 	setPublicKey(kem.PublicKey) iECHConfigBuilder
 	setCipherSuite(hpke.Suite) iECHConfigBuilder
-	build() tls.ECHConfig
+	build() (*tls.ECHConfig, error)
 }
 
 type ECHConfigBuilder struct {
@@ -45,7 +47,7 @@ func (b *ECHConfigBuilder) setCipherSuite(suite hpke.Suite) iECHConfigBuilder {
 	return b
 }
 
-func (b *ECHConfigBuilder) build() tls.ECHConfig {
+func (b *ECHConfigBuilder) build() (*tls.ECHConfig, error) {
 	inner := echConfigInner{
 		configId:  b.configId,
 		publicKey: b.publicKey,
@@ -55,25 +57,26 @@ func (b *ECHConfigBuilder) build() tls.ECHConfig {
 		publicName:   "test",
 		cipherSuites: []hpke.Suite{b.suite},
 	}
-	innerBytes := inner.marshalECHConfig()
+	innerBytes, err := inner.marshalECHConfig()
+	if err != nil {
+		return nil, err
+	}
 
-	// todo: fix this hack
 	var arrayBuilder cryptobyte.Builder
 	arrayBuilder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
 		child.AddBytes(innerBytes)
 	})
 	arrayBytes, err := arrayBuilder.Bytes()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	//configs, err := tls.UnmarshalECHConfigs(innerBytes)
 	configs, err := tls.UnmarshalECHConfigs(arrayBytes)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return configs[0]
+	return &configs[0], nil
 }
 
 type echConfigInner struct {
@@ -84,21 +87,32 @@ type echConfigInner struct {
 	publicName     string
 }
 
-func (c echConfigInner) marshalECHConfig() []byte {
+func (c echConfigInner) marshalECHConfig() ([]byte, error) {
 	var builder cryptobyte.Builder
+
 	builder.AddUint16(0xfe0d)
-	builder.AddUint16LengthPrefixed(c.marshalECHConfigContents)
+
+	var err error
+	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
+		err = c.marshalECHConfigContents(child)
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	bytes, err := builder.Bytes()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return bytes
+	return bytes, nil
 }
 
-func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
+func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) error {
 	// HpkeKeyConfig
-	c.marshalHpkeKeyConfig(builder)
+	err := c.marshalHpkeKeyConfig(builder)
+	if err != nil {
+		return err
+	}
 
 	// maximum_name_length
 	builder.AddUint8(c.maximumNameLen)
@@ -110,32 +124,44 @@ func (c echConfigInner) marshalECHConfigContents(builder *cryptobyte.Builder) {
 
 	// disable extensions for the moment so we just add a length of 0
 	builder.AddUint16(0)
+
+	return nil
 }
 
-func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) {
-	kem, _, _ := c.cipherSuites[0].Params()
+func (c echConfigInner) marshalHpkeKeyConfig(builder *cryptobyte.Builder) error {
+	if len(c.cipherSuites) < 1 {
+		return errors.New("no ciphers found")
+	}
+
+	firstKem, _, _ := c.cipherSuites[0].Params()
+
 	builder.AddUint8(c.configId)
-	builder.AddUint16(uint16(kem))
+	builder.AddUint16(uint16(firstKem))
 
 	// add public key
 	publicKey, err := c.publicKey.MarshalBinary()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
 		child.AddBytes(publicKey)
 	})
 
 	// add ciphersuites
-	// todo: check if kem id is correct
 	builder.AddUint16LengthPrefixed(func(child *cryptobyte.Builder) {
 		for _, cipherSuite := range c.cipherSuites {
-			_, kdf, aead := cipherSuite.Params()
+			kem, kdf, aead := cipherSuite.Params()
+			if firstKem != kem {
+				err = errors.New("not all kems are the same")
+				return
+			}
+
 			child.AddUint16(uint16(kdf))
 			child.AddUint16(uint16(aead))
 		}
 	})
 
+	return err
 }
 
 func main() {
@@ -169,12 +195,19 @@ func test(builder iECHConfigBuilder) tls.ECHConfig {
 	aeadID := hpke.AEAD_AES256GCM
 	suite := hpke.NewSuite(kemID, kdfID, aeadID)
 
-	config := builder.
+	config, err := builder.
 		setConfigId(6).
 		setVersion(16).
 		setPublicKey(publicKey).
 		setCipherSuite(suite).
 		build()
 
-	return config
+	if err != nil {
+		panic(err)
+	}
+
+	return *config
 }
+
+// interface guards
+var _ iECHConfigBuilder = (*ECHConfigBuilder)(nil)
